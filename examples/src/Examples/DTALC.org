@@ -1,0 +1,650 @@
+#+title:  DTALC with improved type machinery
+#+author: Simon Beaumont
+#+email:  datalligator@icloud.com
+#+STARTUP: inlineimages overview indent latexpreview
+
+* Data Types à La Carte
+
+** Abstract
+
+Wouter Swiestra's paper [3] was a solution to the /expression
+problem/ posed by Phil Wadler that became a /Functional Pearl/.
+
+It demonstrates, using Haskell, that we can define an evaluator for
+arithmetic expressions that can be assembled from isolated
+independant components, and that the same technology can be used to
+combine free monads.
+
+Modern refinements to Haskell's type system, featuring closed type
+families, can improve on the type machinery proposed in the paper to
+track and inject co-products more safely and elegantly and these
+techniques have been extended to provide practical libraries.
+
+The main utility of these techniques pertain to the development of
+embedded domain specific languages (eDSL) in Haskell.
+
+*** References
+
+[1] [[https://mpickering.github.io/posts/2014-12-20-closed-type-family-data-types.html][Mathew Pickering blog article]]
+
+[2] [[https://hackage.haskell.org/package/compdata][Patrick Bahr, Tom Hvitved - compdata package]]
+
+[3] [[https://www.cambridge.org/core/journals/journal-of-functional-programming/article/data-types-a-la-carte/14416CB20C4637164EA9F77097909409#][Wouter Swierstra - Functional pearl]]
+
+** Motivating Example
+
+A simple expression language
+#+begin_src haskell
+  data Expr
+    = Val Int
+    | Add Expr Expr
+
+  eval :: Expr -> Int
+  eval (Val x) = x
+  eval (Add x y) = eval x + eval y
+#+end_src
+Since the constructors are fixed in advance all functions dispatching
+on ~Expr~ must be modified if we were to add further constructors.
+
+** "The Expression Problem"
+
+[[https://en.wikipedia.org/wiki/Expression_problem][Phil Wadler and history of the expression problem]]
+
+The proposal is to be able extend the AST, by adding both types and
+functions without recompilation, whilst retaining static type safety.
+
+Here we will adapt the coproduct of functors approach first proposed
+in [3] and introduced to me in [1] from practical work in [2].
+
+This first part essentially modernises and tidies up the type level
+machinery used in the paper using Glasgow Haskell (2020) (and may be
+skipped on first reading).
+
+** Pragma
+*** GHC Extensions
+
+We will be using modern ghc to facilitate type level programming.
+#+begin_src haskell :tangle yes
+  {-# LANGUAGE GADTSyntax #-}
+  {-# LANGUAGE AllowAmbiguousTypes #-}
+  {-# LANGUAGE TypeApplications #-}
+  {-# LANGUAGE ConstraintKinds #-}
+  {-# LANGUAGE FlexibleContexts #-}
+  {-# LANGUAGE TypeOperators #-}
+  {-# LANGUAGE FlexibleInstances #-}
+  {-# LANGUAGE MultiParamTypeClasses #-}
+  {-# LANGUAGE DataKinds #-}
+  {-# LANGUAGE TypeFamilies #-}
+  {-# LANGUAGE UndecidableInstances #-}
+  {-# LANGUAGE ScopedTypeVariables #-}
+  {-# LANGUAGE DeriveFunctor #-}
+#+end_src
+*** Imports
+#+begin_src haskell :tangle yes
+  module Examples.DTALC where
+  import Data.Kind (Type)
+#+end_src
+
+
+** The Type of Expressions
+
+~Expr~ defines a recursive data type where the ~f~ parameter
+specifies all the type constructors (or signatures) that can be used
+in an expression:
+#+begin_src haskell :tangle yes
+  data Expr f = In (f (Expr f))
+#+end_src
+The type parameter ~f~ can be thought of as supplying the /signature/
+of the constructors; in that it takes a type parameter corresponding
+to the expressions that occur in the subtrees of constructors.
+
+This allows the expression tree to be extended with type constructors
+formed into a co-product using a type level operator ~:+:~
+
+*** Int values
+#+begin_src haskell :tangle yes
+  data Val e = Val Int deriving (Functor)
+#+end_src
+
+*** Addition expressions
+#+begin_src haskell :tangle yes
+  data Add e = Add e e deriving (Functor)
+#+end_src
+
+** Co-products
+
+/The key idea is to combine expressions by taking the co-products of
+their signatures./
+
+Following [3] We start with defining the co-product of signature functors and then
+define type level machinery required to inject them at term level.
+#+begin_src haskell :tangle yes
+  data (f :+: g) e
+    = Inl (f e)
+    | Inr (g e)
+
+  infixr 6 :+:
+#+end_src
+
+*** Functor instances
+
+Will ~fmap~ over left and right sub trees.
+#+begin_src haskell :tangle yes
+instance (Functor f, Functor g) => Functor (f :+: g) where
+  fmap f (Inl e) = Inl (fmap f e)
+  fmap f (Inr e) = Inr (fmap f e)
+#+end_src
+
+** Implementation notes
+
+[2] Defines Foldable and Traversable instances for ~:+:~ and much
+more utility.
+  
+[1] Implementing the subtyping relation using type families brings out
+quite a subtle point which is implicit in the original pearl. The type
+class ~:<:~ has two purposes: the first is to check whether we are able
+to construct an injection from ~f~ to ~g~ by computing at the type
+level. The second is to work out the correct injection from ~a~ to ~b~
+at the term level. Type families make this dependency explicit.
+
+Thus, our first step will be to check whether such an injection exists
+from ~f~ to ~g~.
+
+As type class resolution operates without backtracking - we can’t
+express any kind of branching computation in type class instances.
+
+This led to the convention where we were forced to make sure that ~:+:~
+associated to the right; hence, it was easy to think about our
+composed data types as lists of types (with ~:+:~ being a type level
+cons and ~:<:~ searching through the list).
+
+As type families allow us to backtrack, this restriction is
+needless. Instead it is much easier to think about our constructed
+data types as trees.
+
+Ed: See also note Sandy Maguire's [[https://reasonablypolymorphic.com/blog/better-data-types-a-la-carte/index.html][approach using type level lists]].
+
+** Type level functions
+
+To find the location of a type signature in the tree we use the
+following promoted types and closed type families:
+#+begin_src haskell :tangle yes
+  data Where = Here | L Where | R Where
+
+  data Res = Found Where | NotFound
+
+  type family Elem (e :: Type -> Type) (f :: Type -> Type) :: Res where
+    Elem e e         = Found Here
+    Elem e (l :+: r) = Choose (Elem e l) (Elem e r)
+    Elem e f         = NotFound
+
+  type family Choose e f :: Res where
+    Choose (Found a) b = Found (L a)
+    Choose a (Found b) = Found (R b)
+    Choose a b         = NotFound
+#+end_src
+
+** Injection of terms via the co-product search
+
+[1] Now we have the path to the type, we must also construct the
+injection. ...thanks to our additional work we don’t need to rely on
+convention nor /OverlappingInstances/ (Ed: Here Pickering refers to a
+deficiency in original construction in [3])
+#+begin_src haskell :tangle yes
+  class Subsume (res :: Res) (f :: Type -> Type) (g :: Type -> Type) where
+    inj' :: f a -> g a
+
+  instance Subsume (Found Here) f f where
+    inj' = id
+  
+  instance Subsume (Found p) f l => Subsume (Found (L p)) f (l :+: r) where
+    inj' = Inl . inj' @(Found p)
+
+  instance Subsume (Found p) f r => Subsume (Found (R p)) f (l :+: r) where
+    inj' = Inr . inj' @(Found p)
+#+end_src
+Nota: this use of typeclasses is often an efficient way to deal with
+recursive structures as the methods are not actually recursive and can
+thus be inlined.
+
+** Subtype relation
+
+~f~ is a subtype of ~g~ (is subsumed by); if there is an injection
+from ~f~ to ~g~.
+
+#+begin_src haskell :tangle yes
+  infixl 5 :<:
+  type f :<: g = Subsume (Elem f g) f g
+#+end_src
+
+** Equality relation 
+
+#+begin_src haskell :tangle yes
+  infixl 5 :=:
+  type f :=: g = (f :<: g, g :<: f)
+#+end_src
+
+** Injection using typeclass resolution
+
+#+begin_src haskell :tangle yes
+  inj :: forall f g a . (f :<: g) => f a -> g a
+  inj = inj' @(Elem f g)
+#+end_src
+
+We now have all the type level equipment we need to define our
+extensible eDSL by defining co-product types for the expressions.
+
+
+** Functorial folding
+
+Iff ~f~ is a /functor/ we can fold over any value of type ~Expr f~;
+the fold generalises the fold over lists.
+
+The first argument ~f a -> a~ is called an /algebra/ and determines
+how the different constructors of a data type affect the final
+outcome: it specifies one step of the recursion, turning ~f a~ into
+~a~.
+
+(This notion of /algebra/ comes from the category theory
+generalisation of algebraic structure known as /F-algebras/.
+
+#+begin_src haskell :tangle yes
+  foldExpr :: Functor f => (f a -> a) -> Expr f -> a
+  foldExpr f (In t) = f (fmap (foldExpr f) t)
+#+end_src
+
+** Evaluation of /algebras/
+
+Using a typeclass we can define and assemble /algebras/ in a modular
+fashion. In this case the result of evaluation should be an integer
+
+#+begin_src haskell :tangle yes
+  class Functor f => Eval f where
+    evalAlgebra :: f Int -> Int
+#+end_src
+   
+To evaluate expressions of values and additions we need the
+following instances:
+
+*** Expression terms
+#+begin_src haskell :tangle yes
+  instance Eval Val where
+    evalAlgebra (Val x) = x
+
+  instance Eval Add where
+    evalAlgebra (Add x y) = x + y
+#+end_src
+
+*** Co-products
+
+We also need to evaluate functors built from coproducts
+#+begin_src haskell :tangle yes
+  instance (Eval f, Eval g) => Eval (f :+: g) where
+    evalAlgebra (Inl x) = evalAlgebra x
+    evalAlgebra (Inr y) = evalAlgebra y
+#+end_src
+
+** Evaluation of expressions
+
+With all those /ingredients/ in place we can define evaluation by
+folding over an expresion with the algebra defined above.
+
+#+begin_src haskell :tangle yes
+  eval :: Eval f => Expr f -> Int
+  eval e = foldExpr evalAlgebra e
+#+end_src
+
+** Smart constructors
+
+We can now define /smart constructors/ for expressions using the type
+injection machinery:
+#+begin_src haskell :tangle yes
+  injectExpr :: (g :<: f) => g (Expr f) -> Expr f
+  injectExpr = In . inj
+
+  val :: (Val :<: f) => Int -> Expr f
+  val x = injectExpr (Val x)
+
+  add :: (Add :<: f) => Expr f -> Expr f -> Expr f
+  add x y = injectExpr (Add x y)
+
+  infixl 6 ⊕
+  (⊕) :: (Add :<: f) => Expr f -> Expr f -> Expr f
+  x ⊕ y = add x y
+#+end_src
+
+** Example expression
+
+Example of an addition of integer values (contrast this to the example
+without smart constructors).
+
+#+begin_src haskell :tangle yes
+  myexp :: Expr (Val :+: Add)
+  myexp = val 2000 ⊕ val 20 ⊕ val 2
+#+end_src
+
+*** Motivation: without automating the injections
+#+begin_src haskell :tangle yes
+  ugly :: Expr (Val :+: Add)
+  ugly = In (Inr (Add (In (Inl (Val 2000))) (In (Inl (Val 22)))))
+#+end_src 
+And how do we ensure correct injections? 
+
+*** So does it work?
+#+begin_src haskell
+  eval ugly == eval myexp
+#+end_src
+
+#+RESULTS:
+: True
+
+
+
+** Extending the eDSL
+
+So can we extend the expressions with say multiplication?
+#+begin_src haskell :tangle yes
+  data Mul x = Mul x x deriving (Functor)
+#+end_src
+
+*** Extending the evaluator
+
+Now we need to extend the evaluator to evaluate ~Mul~ and define a
+smart constructor for it.
+#+begin_src haskell :tangle yes
+  instance Eval Mul where
+    evalAlgebra (Mul x y) = x * y
+
+  mul :: (Mul :<: f) => Expr f -> Expr f -> Expr f
+  mul x y = injectExpr (Mul x y)
+    
+  infixl 7 ⊗
+  (⊗) :: (Mul :<: f) => Expr f -> Expr f -> Expr f
+  x ⊗ y = mul x y
+#+end_src
+
+*** Let's give that a go...
+
+#+begin_src haskell :tangle yes
+  expr2 :: Expr (Mul :+: Add :+: Val)
+  expr2 = val 4 ⊗ val 2000 ⊕ val 20 ⊕ val 2
+#+end_src
+#+begin_src haskell
+  eval expr2
+#+end_src
+
+#+RESULTS:
+: 8022
+
+** Adding new functions
+
+This follows the example in [3] enabling expressions to be pretty
+printed. The first requirement is to create a class corresponding to
+the functions we wish to write.
+
+*** Render class
+
+The render method is sufficiently general to allow us to make
+recursive calls to the subtrees containing expression of different
+types.
+#+begin_src haskell :tangle yes
+  class Render f where
+    render :: Render g => f (Expr g) -> String
+#+end_src
+#+begin_src haskell :tangle yes
+  pretty :: Render f => Expr f -> String
+  pretty (In t) = render t
+#+end_src
+
+*** Render instances
+
+Now we can define the desired behaviour for each instance of ~Render~
+we wish to handle.
+#+begin_src haskell :tangle yes
+  instance (Render f, Render g) => Render (f :+: g) where
+    render (Inl x) = render x
+    render (Inr y) = render y
+
+  instance Render Val where
+    render (Val t) = show t
+
+  instance Render Add where
+    render (Add x y) = "(" <> pretty x <> " + " <> pretty y <> ")"
+
+  instance Render Mul where
+    render (Mul x y) = "(" <> pretty x <> " * " <> pretty y <> ")"
+#+end_src
+
+Cleary this function is extensible via the typeclass instances. QED.
+
+** Monads for free
+
+We use the same constructors as the original DTALC paper but resort to
+GADT syntax to make the constructor types explicit in defining the
+/free monad/ which consists of either pure values or an impure effect,
+constructed using ~f~.
+
+When ~f~ is a /functor/ ~Term f~ is a /monad/
+
+#+begin_src haskell :tangle yes
+  data Term f a where
+    Pure :: a -> Term f a
+    Impure :: f (Term f a) -> Term f a
+    #+end_src
+
+
+
+    
+*** Functor instances upto monad for ~Term f~
+#+begin_src haskell :tangle yes
+  instance Functor f => Functor (Term f) where
+    fmap f (Pure x) = Pure (f x)
+    fmap f (Impure t) = Impure (fmap f <$> t)
+
+  instance Functor f => Applicative (Term f) where
+    pure = Pure
+    Pure f <*> xs = f <$> xs
+    Impure g <*> xs = Impure ((<*> xs) <$> g)
+
+  instance Functor f => Monad (Term f) where
+    (Pure x) >>= f = f x
+    (Impure t) >>= f = Impure ((>>= f) <$> t)
+#+end_src
+
+*** Free => Left-adjoint of a forgetful functor
+
+#+begin_quote
+In this instance the ~Term~ type is a higher-order functor that maps a
+functor ~f~ to the monad ~Term f~. This ~Term~ functor is left-adjoint
+to the forgetful functor from monads to their underlying functors.
+#+end_quote
+
+** Most monads are not Free
+
+E.g. the list monad and the state monad are not Free. Even though the
+state monad is not a free monad we can use the ~Term~ data type to
+represent a language of stateful computations by interpreting them as
+computations in the state monad.
+** Adding algebraic effects 
+
+#+begin_src haskell :tangle yes
+  data Incr t = Incr Int t deriving (Functor)
+  data Recall t = Recall (Int -> t) deriving (Functor)
+#+end_src
+
+** Smart constructors
+
+#+begin_src haskell :tangle yes
+  injectTerm :: (g :<: f) => g (Term f a) -> Term f a
+  injectTerm = Impure . inj
+
+  incr :: (Incr :<: f) => Int -> Term f ()
+  incr i = injectTerm (Incr i (Pure ()))
+
+  recall :: (Recall :<: f) => Term f Int
+  recall = injectTerm (Recall Pure)
+#+end_src
+
+
+** Do do
+
+How cool is this?
+Tick only works in the ~Term (Recall :+: Incr)~ monad.
+#+begin_src haskell :tangle yes
+  tick :: Term (Recall :+: Incr) Int
+  tick = do
+    y <- recall
+    incr 1
+    return y
+#+end_src
+There is a choice here ~(Recall :<:f, Incr :<: f) => Term f Int~ is
+a more general type for ~tick~ where it would work in any Term that
+supports the operations.
+
+** Algebraic folding
+#+begin_src haskell :tangle yes
+  foldTerm :: Functor f => (a -> b) -> (f b -> b) -> Term f a -> b
+  foldTerm pur _ (Pure x) = pur x
+  foldTerm pur imp (Impure t) = imp (fmap (foldTerm pur imp) t)
+#+end_src
+Now we need an /algebra/ to keep track of the state of the memory
+cell, to avoid confusion Wouter introduces a newtype:
+#+begin_src haskell :tangle yes
+  newtype Mem = Mem Int deriving Show
+#+end_src
+To interpret our terms we need to define a /run/ function with the
+following type:
+#+begin_src haskell
+  run :: ... => Term f a -> Mem -> (a, Mem)
+#+end_src
+
+** The algebra
+#+begin_src haskell :tangle yes
+  class Functor f => Run f where
+    runAlgebra :: f (Mem -> (a, Mem)) -> (Mem -> (a, Mem))
+
+  instance Run Incr where
+    runAlgebra (Incr k r) (Mem i) = r (Mem (i + k))
+
+  instance Run Recall where
+    runAlgebra (Recall r) (Mem i) = r i (Mem i)
+
+  instance (Run f, Run g) => Run (f :+: g) where
+    runAlgebra (Inl r) = runAlgebra r
+    runAlgebra (Inr r) = runAlgebra r
+#+end_src
+
+*** Running the algebra
+#+begin_src haskell :tangle yes    
+  run :: Run f => Term f a -> Mem -> (a, Mem)
+  run = foldTerm (,) runAlgebra
+#+end_src
+#+begin_src haskell 
+  run tick (Mem 4)
+#+end_src
+
+#+RESULTS:
+| 4 | Mem | 5 |
+
+** Extend the term monad to run effects in IO
+
+#+begin_src haskell :tangle yes
+  data Teletype a 
+    = GetChar (Char -> a)
+    | PutChar Char a
+    deriving (Functor)
+
+  data FileSystem a
+    = ReadFile FilePath (String -> a)
+    | WriteFile FilePath String a
+    deriving (Functor)
+#+end_src
+** Execute the term monads effects
+#+begin_src haskell :tangle yes  
+  exec :: Exec f => Term f a -> IO a
+  exec = foldTerm return execAlgebra
+
+  class Functor f => Exec f where
+    execAlgebra :: f (IO a) -> IO a
+
+  instance Exec Teletype where
+    execAlgebra (GetChar f) = Prelude.getChar >>= f
+    execAlgebra (PutChar c io) = Prelude.putChar c >> io
+
+  instance Exec FileSystem where
+    execAlgebra (ReadFile name f) = Prelude.readFile name >>= f
+    execAlgebra (WriteFile name s io) = Prelude.writeFile name s >> io
+#+end_src
+
+** Smart constructors
+#+begin_src haskell :tangle yes
+  readFile' :: (FileSystem :<: f) => FilePath -> Term f String
+  readFile' name = injectTerm (ReadFile name Pure)
+
+  writeFile' :: (FileSystem :<: f) => FilePath -> String -> Term f ()
+  writeFile' name s = injectTerm (WriteFile name s (Pure ()))
+  #+end_src
+
+** Examples of restricted effects
+#+begin_src haskell :tangle yes
+  copyFile :: FilePath -> FilePath -> Term (FileSystem) ()
+  copyFile from to = do
+    contents <- readFile' from
+    writeFile' to contents
+    return ()
+#+end_src  
+
+#+begin_src haskell
+  exec $ copyFile "DTALC.hs" "CopyOfDTALC.hs"
+#+end_src
+
+#+RESULTS:
+
+** Exercises
+*** Finish off ~Teletype~ smart constructors (20 mins)
+
+Write/test some examples using them and co-product with ~FileSystem~
+
+*** Entend Term language with more effects (1hr)
+
+Write execAlgebra, smart constructors and examples with co-product
+types.
+
+*** Reflect on expressivity and power of DTALC, contrast with Tagless finally. (30 min)
+
+*** Extend the type injection machinery
+
+The simplified presentation of co-product injections given above
+suffers from many omissions:
+
+0. inj partial inverse AFAIK this is a left inverse or retraction to
+   the pre-image of inj (called prj in the original paper [3]) can we
+   define a partial function for the class:
+   ~(sub :<: sup) => ret :: sup a -> Maybe (sub a)~
+   And how would this be useful? (30 mins)
+   
+1. One of these is co-product type ambiguity e.g. what does the following
+   expression mean? 
+
+#+begin_src haskell 
+  eval (val 40 :: Expr (Val :+: Val))
+#+end_src
+
+How can we fix the implementation of our type analysis above to disallow
+such ambigous constructions? (30 mins) 
+
+2. How can we allow more complex subtyping relations to hold e.g.: (1hr)?
+
+#+begin_src haskell
+:kind! (Add :+: Mul :<: Add :+: Mul :+: Val)
+#+end_src
+
+3. Add product types (:*:)? (2hr)
+
+See: [[https://github.com/pa-ba/compdata/blob/master/src/Data/Comp/Ops.hs][Patrick Bahr's compdata package]] for practical implementations of
+above for guidance and solutions.
+
+** Further reading
+
+1. [[https://github.com/lamdu/hypertypes][Hypertypes]]
+2. [[https://gist.github.com/danidiaz/36f5647c0968361eedd677ad3870715f#file-_fp-reading-lists-md][Daniel Diaz Carrete's extensive meta reading list]]

@@ -1,0 +1,15 @@
+* Type Theory (MLTT) 
+
+Following along Jon Sterling live coding session (HoTTEST Summer
+School 2022); Incomplete and partial implemementation of elaboration
+up to definitional equality in Haskell using the Normalisation by
+Evaluation approach (NbE).
+
+See: Andras Kovacs
+[[https://github.com/AndrasKovacs/elaboration-zoo][elaboration-zoo]]
+[[https://github.com/AndrasKovacs/smalltt][small-tt]]
+
+Warning: currently most of the evalutation/elaboration functions are partial.
+Not fit for any purpose other than as an opportunity for refactoring.
+
+

@@ -1,0 +1,142 @@
+#+TITLE: Overview and Objectives
+#+AUTHOR: Simon Beaumont
+#+EMAIL:  datalligator@icloud.com
+#+STARTUP: inlineimages hideblocks
+
+* Overview - why these topics?
+#+begin_src dot :file notes.png
+  digraph {
+    Cats [label="The Categorical Perspective"]
+    Expr [label="The Expression Problem"]
+    Deno [label="Denotational Design"]
+    eDSL [label="Domain Specific Languages"]
+
+    Cats -> Deno
+    Deno -> Expr
+    Expr -> eDSL
+  }       
+#+end_src
+
+#+RESULTS:
+[[file:notes.png]]
+
+** The Categorical Perspective
+
+Category theory grew out of the fields of abstract algebra and
+algebraic topology it's goal is to provide a unified abstract view of
+mathematical strcuture across multiple fields or domains of study. In
+general mathematical practice if we can show that some object has the
+same structure, upto isomorphism, as some other well studied object in
+terms of proofs of it's theorems; then we can freely inherit all of
+those results.
+
+The application of Category has become de-riguer in the field of
+computer science and many strcutures been retro-fitted into many
+functional languages such as Scala and most notably Haskell.
+
+Whilst the theoretical underpinnings of functional programming, the
+λ-calculus, type theory etc. can be cast in the language of category
+theory, cartesian closed categories etc. No language currently rests
+on category theory foundations although there is at least one proposal of
+how this could be achieved.
+
+The main advantage in a more general setting is allowing software
+engineers and programmers to build thier applications in terms of well
+defined mathematical structures much like engineers in other
+disciplines. This view underpins the goals of denotational design, the
+practise of which demands proof of the denotation's mathematical
+properties and relies on homomorphic translation to implementations to
+ensure correctness.
+
+See: Computational trilogy and [[https://ncatlab.org/nlab/show/computational+trilogy][trinitarianism]] 
+
+#+begin_src dot -Kcirco :file "tinity.png"
+  graph {
+    Comp  [label="Computation and Programming Languages" shape=box]
+    Logic [label="Intuitionist Logic and Type Theory" shape=box]
+    Cats  [label="Category and Topos Theory" shape=box]
+
+    Comp -- Logic
+    Logic -- Cats
+    Cats -- Comp
+  }
+#+end_src
+
+#+RESULTS:
+[[file:tinity.png]]
+
+
+[[https://github.com/hmemcpy/milewski-ctfp-pdf][Category Theory for Programmers]] -- Bartosz Milewski
+
+** The Expression Problem
+
+- Extensibility
+- Composability
+- Static type-safety
+
+** Denotational Design
+
+[[http://conal.net/talks/denotational-design-lambdajam-2015.pdf][Conal Elliott]]
+
+1. Find a well studied mathematical abstraction that is adequate,
+   simple, precise and closely models the domain entity (the
+   denotation) e.g.:
+
+2. Prove the properties in a formal setting.
+
+#+begin_src agda2   
+presentation : Knowledge -> Knowledge
+#+end_src
+is that a good model? is it mathematically well defined? is it simple and precise?
+
+or the canonical:
+#+begin_src agda2
+image : R x R -> Color
+#+end_src
+
+or as I am playing with as an example:
+#+begin_src agda2
+möbius : ℂ -> ℂ
+#+end_src
+i.e. function composition rather than the normal implementation bound
+matrix multiplication.
+
+** Domain Specific Vocabularies
+
+Aka. Embedded Domain Specific Language (eDSL)
+
+[[https://www.cs.cmu.edu/~crary/819-f09/Landin66.pdf][The next 700 Programming Languages]] -- Peter Landin 
+
+
+* Notes
+
+** Abstract algebra
+
+| Structure | Associativity | Identity | Inverse |
+|-----------+---------------+----------+---------|
+| semigroup | ✓             |          |         |
+| monoid    | ✓             | ✓        |         |
+| group     | ✓             | ✓        | ✓       |
+|           |               |          |         |
+
+[[https://boris-marinov.github.io/category-theory-illustrated/02_category/][Category Theory Illustrated]] -- Boris Marinov
+
+** Algebraic Types
+
+| Sum      | Either a b |
+| Product  | (a, b)     | 
+| Exponent | (->) a b   |
+
+** "Category" Hask and its Endofunctors
+
+| Typeclass   | methods             | Concept          |
+|-------------+---------------------+------------------|
+| Functor     | fmap <$>            | mapping          |
+| Applicative | ap <*>              | sequence actions |
+| Monad       | bind >>=, join, >=> | sequence actions |
+| Traversable | traverse, sequenceA |                  |
+
+Not a functor but a Catamorphism (for which we need to understand F-Algebras):
+|             |                     |                  |
+| Foldable    | fold                | reduction        |
+|             |                     | inductive-types  |

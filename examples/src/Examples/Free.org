@@ -1,0 +1,123 @@
+#+TITLE: Derivation of the Free monad
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+#+STARTUP: inlineimages overview indent latexpreview
+
+* Example of (a naive) free monad implementation
+
+** Disclaimer and pre-amble
+
+Nota bene: Do not use this for anything other than research and
+learning; there are much better implementations that use e.g. Church
+encodings in Ed Kmett's library [[https://hackage.haskell.org/package/free][Free]]. And consider the implications.
+
+Nevertheless following [[https://serokell.io/blog/introduction-to-free-monads][Introduction to free monads]] and [[https://www.tweag.io/blog/2018-02-05-free-monads/][Tweag - Free
+monads]] we cook our very own Free monad.
+
+#+begin_src haskell :tangle yes
+  {-# LANGUAGE TypeOperators #-}
+  {-# LANGUAGE RankNTypes #-}
+  {-# LANGUAGE GADTSyntax #-}
+  {-# LANGUAGE DeriveFunctor #-}
+  {-# LANGUAGE DerivingStrategies #-}
+#+end_src
+
+
+#+begin_src haskell :tangle yes
+module Examples.Free where
+#+end_src
+
+** Use GADTSyntax to make constructor types explicit
+
+#+begin_src haskell :tangle yes
+data Free f a where
+  Pure :: a -> Free f a 
+  Free :: f (Free f a) -> Free f a
+#+end_src
+
+** Functor instance is foundation
+
+#+begin_src haskell :tangle yes
+instance Functor f => Functor (Free f) where
+  fmap f (Pure x) = Pure (f x)
+  fmap f (Free g) = Free (fmap f <$> g)
+#+end_src
+
+** Notice common structural pattern in definition of ~ap~ and ~>>=~
+
+#+begin_src haskell :tangle yes
+instance Functor f => Applicative (Free f) where
+  pure = Pure
+  Pure f <*> xs = f <$> xs
+  Free g <*> xs = Free ((<*> xs) <$> g)
+
+instance Functor f => Monad (Free f) where
+  return = pure
+  Pure x >>= f = f x
+  Free g >>= f = Free ((>>= f) <$> g)
+#+end_src
+
+** Join in terms of fmap
+ 
+#+begin_src haskell :tangle yes
+  join :: Functor f => Free f (Free f a) -> Free f a
+  join (Pure x) = x
+  join (Free x) = Free $ join <$> x
+#+end_src
+
+** Lift a Functor into Free
+
+#+begin_src haskell :tangle yes
+  liftF :: Functor f => f a -> Free f a
+  liftF = Free . fmap Pure
+#+end_src
+
+In order to restore normal monad behaviour we need a natural
+transformation from the Free strcture to some monad.
+
+The documentation of ~Control.Monad.Free~, says:
+#+begin_quote
+"The very definition of a free monad is that given a natural
+transformation you get a monad homomorphism."
+#+end_quote
+
+#+begin_src haskell :tangle yes
+  foldFree :: Monad m => (forall x. f x -> m x) -> Free f a -> m a
+  foldFree _ (Pure x) = return x
+  foldFree f (Free as) = f as >>= foldFree f
+#+end_src
+
+** The type of all natural transfomations
+
+#+begin_src haskell :tangle yes
+  infixr 0 ~>
+  type f ~> g = forall x. f x -> g x
+#+end_src
+
+** Free also maps natural transformations to natural transformations
+
+as well as functor to functors
+
+#+begin_src haskell :tangle yes
+  freeM :: (Functor f, Functor g) => f ~> g -> Free f ~> Free g
+  freeM _ (Pure x) = Pure x
+  freeM α (Free fx) = Free $ α (freeM α <$> fx)
+#+end_src
+
+** A special interpretation of Free monad into itself
+
+#+begin_src haskell :tangle yes
+  monad :: Monad m => Free m ~> m
+  monad (Pure x) = pure x
+  monad (Free mfx) = do
+    fx <- mfx
+    monad fx
+#+end_src
+
+** Buy one natural transformation, and get this monad morphism for free!
+
+#+begin_src haskell :tangle yes
+  interp :: (Functor f, Monad m) => f ~> m -> Free f ~> m
+  interp α = monad . freeM α
+#+end_src
+

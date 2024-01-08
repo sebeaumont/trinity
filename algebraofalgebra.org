@@ -1,0 +1,263 @@
+#+TITLE: The Categorical Perspective
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+#+BIBLIOGRAPHY: papers/citations.bib
+#+STARTUP: inlineimages overview latexpreview indent entitiespretty 
+#+LATEX_HEADER: \usepackage{tikz}
+#+LATEX_HEADER: \usetikzlibrary{positioning, quotes, arrows}
+#+OPTIONS: tex:imagemagick
+
+* Haskell and Category Theory
+[[./dk-hask.png]]
+
+* What is Category Theory?
+** Introduction
+
+Sometime called the /Algebra of Algebra/ by [[https://en.wikipedia.org/wiki/Thorsten_Altenkirch][Thorsten Altenkirch]] or
+"abstract nonsense" -- anon mathematician.
+
+/Category Theory/ grew out of the fields of abstract algebra and
+algebraic topology and was introduced in the seminal work of Saunders
+Mac Lane, "Categories for the Working Mathematician" [cite: @maclane].
+It's goal is to provide a unified and (essentially) abstract view of
+mathematical structure across multiple fields.
+
+** References
+
+An excellent introduction for working programmers drawing examples in
+C++ and Haskell is given by Bartosz Milewski in his online
+[[https://github.com/hmemcpy/milewski-ctfp-pdf][Category Theory for Programmers]] and printed volume [cite:@milewski]
+
+A more mathematically orientend introduction can be found in /An
+Introduction to Category Theory/ by Harold Simmons
+[cite:@simmons]; which is accompanied by downloadable solutions to
+exercises making it suitable for self study.
+
+A more comprehensive approach can be followed in Steve Awodey's -
+/Category Theory/ [cite:@awodey].
+
+* Basic Concepts
+** Category
+*** Objects (could be only one)
+
+\begin{equation*}
+   \resizebox{10cm}{!}{% 
+    \begin{tikzpicture}
+      \node (A) {$A$};
+      \node (B) [right of=A] {$B$};
+    \end{tikzpicture}
+}
+\end{equation*} 
+
+*** Arrows/morphisms
+
+\begin{equation*}
+  \resizebox{10cm}{!}{%
+  \begin{tikzpicture}
+    \node (A) {$A$};
+    \node (B) [right of=B] {$B$};
+    \draw [->] (A) to node {$$} (B);
+  \end{tikzpicture}
+  }
+\end{equation*}   
+
+*** Identity arrows
+
+\begin{equation*}
+  \resizebox{10cm}{!}{%
+  \begin{tikzpicture}[every edge quotes/.append style = {font=\tiny}]
+    \node (A) {$A$};
+    \node (B) [below of=A] {$B$};
+    \path[->] (B) edge [out=210, in=150, loop, "${\tiny id_B}$"] (B);
+    \path[->] (A) edge [out=210, in=150, looseness=5, loop, "$id_A$"] (A);
+  \end{tikzpicture}
+  }
+\end{equation*}
+   
+*** Associative composition of arrows
+
+
+\begin{equation*}
+  \resizebox{7cm}{!}{%
+  \begin{tikzpicture}[node distance=3cm, auto]
+    \node (A) {$A$};
+    \node (B) [below of=A] {$B$};
+    \node (C) [right of=B] {$C$};
+    \draw [->] (A) to node {$g \circ f$} (C);
+    \draw [->] (A) to node {$f$} (B);
+    \draw [->] (B) to node {$g$} (C);
+  \end{tikzpicture}
+  }
+\end{equation*}
+
+Such that the diagram "commutes"
+
+*** In Haskell
+#+begin_src haskell
+  {-# LANGUAGE NoImplicitPrelude #-}
+  class Category cat where
+    id :: cat a a
+    (.) :: cat b c -> cat a b -> cat a c
+#+end_src
+** Category Hask?
+
+  /Types/ are the /objects/ in the category ~Hask~
+
+  And pure /functions/ are the /morphisms/ in ~Hask~
+
+  We also have: ~id : ∀ a. a -> a~
+
+  /But none of this is true really!/
+
++-------+
+| C     | But if we ignore ⊥ inhabiting every type
+|  Hask | and handwave a bit... 
++-------+
+
+
+*** We have a useful fiction
+#+begin_src haskell
+import qualified GHC.Base as Base (id, (.))
+
+instance Category (->) where
+  id = Base.id
+  (.) = (Base..)
+#+end_src
+
+*** COMMENT What no initial object?
+
+But since ⊥ inhabits every type (even Void) there is no real initial
+object (or 0) and we can construct this abomination:
+#+begin_src haskell
+absurd :: Void -> a
+absurd = undefined
+#+end_src
+
+So given /ex falso quodlibet/ the (Haskell) type theory is a poor logic.
+
+Q. Anyone guess what the terminal object could be?
+
+Q. Which feature would be required to fix this?
+** Monoid
+
+Not strictly a concept from category theory but from abstract algebra
+and probably the most fundamental structure in computation (even
+mathematics). 
+
+1. A /Set/ with an /associative/ binary operator:
+   
+   ~(x ⊕ y) ⊕ z ≡ x ⊕ (y ⊕ z)~
+  
+2. And an /identity/ element:
+   
+   ~e ⊕ x ≡ x~
+   ~x ⊕ e ≡ x~
+
+
+*** Examples of monoids
+
+- Basic arithmetic over the set of natural numbers (ℕ)
+  /(ℕ,+,0)/ and /(ℕ,*,1)/
+
+- String concatenation /(String, ++, "")/
+
+*** Monoid as a category
+
+A general monoid ~(M,*,𝟙)~ is a /single object/ category the /set/ ~M~
+
+equipt with a /binary operation/: ~* : M x M -> M~
+
+the /arrows/ are the /elements/ of the set ~{x, y, z...} ∈ M~ 
+
+With a /unit/ element ~𝟙~
+
+such that: ~x * (y * z) ≡ (x * y) * z~ and ~𝟙 * x ≡ x ≡ x * 𝟙~ 
+
+The composition of the /arrows/ is the binary operation: ~x * y~
+
+** Monoid abstractly
+#+begin_src haskell
+  class Monoid m where
+    μ :: (m, m) -> m    -- "multiplication"
+    η :: () -> m        -- identity (unit of "multiplication")
+#+end_src
+
+** Functor
+Is morphism (arrow) between categories:
+  ~F(A) -> F(B)~
+
+An /endofunctor/ is a functor where the source and target are the same
+category:
+  ~F(C) -> F(C)~ 
+
+Functors map objects and arrows in such a way as to preserve structure
+(composition, diagrams and identities). /Functoriality conditions/:
+  ~F(g . f) == F(g) . F(f)~
+
+  ~F(id) = id F~
+
+** Natural Transformations
+
+Natural transformations are morphisms between /functors/ 
+
+In /Hask/ the natural transformations between functors are
+(polymorphic) functions between ~Functors~:
+
+    ~α : f a -> g a~
+#+begin_src haskell
+head :: List a -> Maybe a
+#+end_src
+** Category of functors
+
+Of course these form a /category of functors/ (a.k.a. 2-categories)
+
+\begin{equation*}
+  \resizebox{10cm}{!}{%}
+  \begin{tikzpicture}[node distance=3cm, auto]
+    \node (FC) {$F(C)$};
+    \node (FD) [right of=FC] {$F(D)$};
+    \node (GC) [below of=FC] {$G(C)$};
+    \node (GD) [right of=GC] {$G(D)$};
+    \draw [->] (FC) to node {$F(f)$} (FD);
+    \draw [->] (GC) to node {$G(f)$} (GD);
+    \draw [->] (FC) to node {$\alpha_C$} (GC);
+    \draw [->] (FD) to node {$\alpha_D$} (GD);
+  \end{tikzpicture}
+}
+\end{equation*}
+
+Where the morphisms are natural tranformations and the objects are
+functors.
+
+(C D : Cat; F G : Functor; f is a morphism in its category)
+
+
+
+*** It's n-categories all the way down...
+
+✓ [[https://github.com/hmemcpy/milewski-ctfp-pdf][Category theory for programmers - Bartosz Milewski]]
+
+⚙ [[https://www.stephendiehl.com/posts/monads.html][Monads made difficult - Stephen Diehl]]
+
+⚙ [[https://www.youtube.com/watch?v=Ssx2_JKpB3U][A categorical view of computational effects - Emily Riehl (Lambda world 2019)]]
+
+🤯[[https://golem.ph.utexas.edu/category/][n-Category Café]]
+
+🌻[[https://ncatlab.org/nlab/show/HomePage][nlab]]
+
+* COMMENT Appendices
+** COMMENT Trinity diagram
+#+begin_src dot -Kcirco :file "trinity.png"
+  digraph {
+    Comp  [label="Computation and Programming Languages" shape=box]
+    Logic [label="Intuitionist Logic and Type Theory" shape=box]
+    Cats  [label="Category and Topos Theory" shape=box]
+
+    Comp -> Logic
+    Logic -> Cats
+    Cats -> Comp
+  }
+#+end_src
+
+#+RESULTS:
+[[file:trinity.png]]

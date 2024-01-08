@@ -1,0 +1,162 @@
+#+TITLE: Derivation of Arrow
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+#+STARTUP: inlineimages overview indent latexpreview entitiespretty
+
+* Arrows are Strong Profunctors
+
+** Disclaimer and pre-amble
+
+Nota bene: Do not use this code for anything other than research and
+learning; there are much better implementations in Hoogle or standard
+libraries. Probably done by Ed Kmett in the /Kmettiverse/.
+
+Nevertheless we are following [[https://www.youtube.com/watch?v=hrNfkP8iKAs&t=1231s][Bartosz Milewski - Arrows are Strong
+Pro-functors]] and the nice thing here is we arrive at an example of the
+Kleisli Arrow via monodial categories and strong pro-functors to
+achieve a fresh perspective.
+
+#+begin_src haskell :tangle yes
+module Examples.Arrows where
+import Data.Kind (Type)
+#+end_src
+
+** Functor is the foundation.
+
+Here with redundant bracket to emphasise what's going on here; the
+morphism as well as the objects are mapped (lifted) between categories.
+#+begin_src haskell :tangle no
+  class Functor (f :: Type -> Type) where
+    fmap :: (a -> a') -> (f a -> f a')
+#+end_src
+
+** Bifunctor 
+
+This is a "product category" from two categories (types in Hask) to
+another category.
+#+begin_src haskell :tangle yes
+class Bifunctor (f :: Type -> Type -> Type) where
+  bimap :: (a -> a') -> (b -> b') -> f a b -> f a' b'
+#+end_src
+
+** Profunctor
+
+The only difference with the bifunctor is the direction of the
+arrows in the first argument i.e. functor is contra-variant in the
+first argument.
+#+begin_src haskell :tangle yes
+class Profunctor (f :: Type -> Type -> Type) where
+  dimap :: (a' -> a) -> (b -> b') -> f a b -> f a' b'
+#+end_src
+So we can define the regular function instance.
+#+begin_src haskell :tangle yes
+instance Profunctor (->) where
+  dimap con pro f = pro . f . con 
+#+end_src
+
+** COMMENT fold as a profunctor
+
+A more interesting application of a profunctor is as a fold.  Here a
+type that represents updating state based on ~a~ and transforming the
+final state into ~b~. Thanks to Ollie Charles for this example.
+#+begin_src haskell :tangle yes
+data L a b = forall s. L (s -> b) (s -> a -> s) s
+
+instance Profunctor L where
+  dimap h f (L res iter ini) =
+    L (f . res) (\s -> iter s . h) ini
+  
+summer :: Num a => L a a
+summer = L id (+) 0
+  
+lengther :: L String String
+lengther = dimap length (\s -> "The total length was " ++ show s) summer
+  
+foldL :: L a b -> [a] -> b
+foldL (L res iter ini) = res . foldl iter ini
+
+sumL :: [Integer] -> Integer
+sumL = foldL summer
+    
+testLengther :: String
+testLengther = foldL lengther ["24", "days", "of", "hackage", "!"]  
+#+end_src
+As Ollie says, think of the Profunctor as "consuming" values of one type
+and "producing" values of another. Used extensively in Lenses package.
+
+** TODO Ends
+What's an end then?
+#+begin_src haskell :tangle yes
+type End p = forall x. p x x
+
+newtype NaturalPro f g a b = NaturalPro (f a -> g b)
+
+instance (Functor f, Functor g) => Profunctor (NaturalPro f g) where
+  dimap ba cd (NaturalPro p) =
+    NaturalPro $ fmap cd . p . fmap ba
+
+type α f g = End (NaturalPro f g)
+#+end_src
+
+** Co-end
+So what's a coend? Notes: infnite sum, existential quantification
+#+begin_src haskell :tangle yes
+type Coend p = ∀ x. p x x
+data Coend p = ∀ x. Coend (p x x)
+#+end_src
+
+** Composition
+Profunctor as a "proof-relevant?" relation (arrow/morphism?) between types
+~∃ x. (p a x, q x b)~ ~p~ is proof/witness ~a -> x~, ~q~ is a proof ~x -> b~
+#+begin_src haskell :tangle yes
+type Compose p q a b = ∀ x. Compose (p a x) (q x b)
+
+instance (Profunctor p, Profunctor q) => Profunctor (Compose p q) where
+  dimap con pro (Compose pax qxb) =
+    Compose (dimap con id pax) (dimap id pro qxb)
+#+end_src
+
+** Composition as Coend
+#+begin_src haskell :tangle yes
+data TensorProd p q a b x y = TensorProd (p a y) (q x b)
+
+instance (Profunctor p, Profunctor q) => Profunctor (TensorProd p q a b) where
+  dimap con pro (TensorProd pay qxb) =
+    TensorProd (dimap id pro pay) (dimap con id qxb)
+
+data Compose p q a b = Coend (TensorProd p q a b)  
+#+end_src
+
+** Yoneda Lemma (Ninja)
+#+begin_src haskell :tangle yes
+newtype PreYoneda f a x y =
+  PreYoneda ((a -> x) -> f y)
+
+instance Functor f => ProFunctor (PreYoneda f a) where
+  dimap con pro (PreYoneda ax_fy) =
+    PreYoneda (\ax' -> fmap pro (ax_fy (con . ax')))
+
+newtype Yoneda f a = Yoneda (∀ x. (a -> x) -> f x)
+
+toY :: Functor f => Yoneda f a -> f a
+toY (Yoneda axfx) = axfx id
+
+fromY :: Functor f => f a -> Yoneda f a
+fromY fa = Yoneda (\ax -> fmap ax fa)
+#+end_src
+
+** TODO CoYoneda
+
+** TODO R-Unit of composition
+
+** TODO L-Unit of composition
+
+** TODO Profunctor Category
+
+** TODO Monoidal Category
+
+** TODO Pre-arrow
+
+** TODO Profunctor Strength
+
+** TODO Arrow - Mondoid of strong profunctors

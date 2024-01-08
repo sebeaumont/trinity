@@ -1,0 +1,28 @@
+#+TITLE Monoidial categories
+#+AUTHOR Simon Beaumont
+#+EMAIL datalligator@icloud.com
+
+* Haskell rendering of the monoids from "Notions of computation as monoids"
+
+#+begin_src haskell :tangle yes
+  module Examples.Monoids where
+#+end_src
+So let's try and define the requirements of Theorem 1.1 Cayley
+representation for monoids using lists as our basic monoid:
+~([a], ++, [])~ in Haskell
+
+These are none other than (Hughes, 1986) difference-lists, where lists
+are represented as endofunctions of lists.
+
+#+begin_src haskell :tangle yes
+  type EList a = [a] -> [a] 
+
+  rep :: [a] -> EList a
+  rep xs = \ys -> xs ++ ys
+
+  abs :: EList a -> [a]
+  abs xs = xs []
+#+end_src
+
+
+

@@ -1,0 +1,444 @@
+#+TITLE:  Taming of effects (in Haskell)
+#+AUTHOR: Simon Beaumont 
+#+EMAIL:  datalligator@icloud.com
+#+STARTUP: inlineimages overview indent latexpreview 
+
+* Taming effects
+
+A tour of why things are as they are in the ongoing attempt(s) to 
+encode effects in Haskell (a pure functional, lazy language).
+
+We will perhaps, also see that:
+#+begin_quote
+“...code is the wrong abstraction for doing programming.”
+--Sandy Maguire. Algebra-Driven Design
+#+end_quote
+
+* Overview
+[[./sof-map.png]]
+
+* Model effects
+
+Because really we want to have impure "functions": a ~> b
+
+   - Partial functions ~a -> Maybe b~
+
+   - Environment ~(a,e) -> b~
+
+   - State ~(a,s) -> (b,s)~
+
+   - Non-determinism ~a -> [b]~
+
+** How to proceed?
+
+*** Kleisli arrows
+Impure functions can be encoded in a common pattern:
+#+begin_src haskell
+  a -> t b          -- for some (Type->Type) t
+                    -- e.g.
+  a -> Maybe b      -- partial a ~> b
+  a -> (e -> b)     -- Reader e a
+  a -> (s -> (b,s)) -- State s a
+  a -> List b       -- Non-det
+  a -> IO b         -- world state
+#+end_src    
+These are known as /Kleisli arrows/, (or morphisms in the Kleisli
+category). (Aka T-programs: ~A -> T(B)~; ~T(B)~ is a T-computation)
+
+To write functional programs we want to compose these arrows...
+
+* The Kleisli Category
+** Composition of Kleisli arrows
+
+   The "fish" operator   
+   #+begin_src haskell
+     (>=>) :: (a -> m b) -> (b -> m c) -> (a -> m c)
+   #+end_src
+
+** Identity for composition
+   #+begin_src haskell
+     return :: a -> m a 
+   #+end_src
+     return >=> f ≡ f    -- left identity
+     
+     f >=> return ≡ f    -- right identity
+    
+** What we have
+
+   ✓ Composition of Kleisli arrows (>=>)
+   
+   With a "proof" of:
+   
+   ✓ associativity
+     
+   ✓ left and right identity
+
+   So our morphisms commute/compose and we have identities
+   for them: it looks like a category, walks like a category...
+   
+** A Monad?
+
+   a -> T b
+   
+   T is a /monad/ just when it has the structure needed to turn
+   T-programs into a category:
+
+   i.e. /The Kleisli category of the monad T/
+   
+** But we have also defined
+
+"A monoid in the category of endofunctors" (in the category Hask)
+
+(via composition of Kleisli arrows)
+
+So what's the problem? 🤯
+
+** What monad is not
+
+Anything else (not a Burrito for sure!) and now we are officially
+forbidden from writing monad tutorials...
+
+** bind and join?
+
+
+Give me Kleisli composition; I'll give you bind:
+#+begin_src haskell
+  infixr 1 >=>
+  -- | Monad done right :)
+  class Monad m where
+    (>=>) :: (a -> m b) -> (b -> m c) -> (a -> m c)
+    return :: a -> m a
+    -- | Bind in terms of composition of Kleisli arrows
+    (>>=) :: m a -> (a -> m b) -> m b
+    m >>= f = id >=> f $ m
+#+end_src
+
+*** So why bind is default?
+
+- It's often easier to define bind for an instance.
+
+- Kleisli composition is the real deal though as it reflects the
+  essense of the category.
+
+Deriving fish (>=>) from bind (>>=) is left as an [[https://hackage.haskell.org/package/base-4.17.0.0/docs/src/Control.Monad.html#%3E%3D%3E][exercise]].
+
+*** Bind and Join
+#+begin_src haskell
+  -- | bind in terms of join
+  (>>=) :: Monad m => m -> (a -> m b) -> m b 
+  m >>= f = join $ fmap f m
+
+  -- | join in terms of bind
+  join :: Monad m => m (m a) -> m a
+  join mm = mm >>= id
+#+end_src
+** A historical note on Monad
+
+I didn't need to add a constraint for Functor as ~fmap~ can be derived
+from bind:
+#+begin_src haskell
+  fmap :: Monad f => (a -> b) -> f a -> f b
+  fmap f m = m >>= return . f
+
+  -- Or more fishy 
+  fmap f = id >=> (\x -> return (f x)) 
+#+end_src
+And for a long time AFAIK this was Monad (in Haskell)
+** Monad composition is not closed
+
+If we tried to compose two monads and implement join for the
+composite; we would end up needing the distributive law:
+
+#+begin_src haskell
+  distribute :: (Monad f, Monad g) => g (f a) -> f (g a)   
+#+end_src
+
+*** Can you see how that might (not) work?
+
+distribute :: IO (Maybe a) -> Maybe (IO a)
+
+[[https://stackoverflow.com/questions/55044292/why-are-monads-not-closed-under-composition][Stackoverflow question]]
+[[https://golem.ph.utexas.edu/category/2017/02/distributive_laws.html][n-category cafe]]
+
+* What is this Free thing then?
+** What is means to be free
+
+A free structure on A has all the laws for A but no other constraints
+i.e. it's free to be A (free as in freedom).
+
+So far we have a free monoid (via. Kleisli composition) 
+** Free by fiat
+#+begin_src haskell
+  data Free f a
+    = Pure a
+    | Free (f (Free f a))
+#+end_src
+Which looks like a tree with branches of the Free structure
+of an arbitrary type ~f~ and leaves of type ~a~.
+
+*** Reminiscent of anything?
+
+The constructors look like return and join! 
+#+begin_src haskell
+
+  data Free f a where
+    Pure :: a -> Free f a            -- return :: a -> f a
+    Free :: f (Free f a) -> Free f a -- join :: m (m a) -> m a
+
+#+end_src
+
+*** Voilà: The Free Monad
+
+Since we can define Monad in terms of return, join and fmap; we can
+encode the monad in the free structure /iff/ we require ~f~ to be a
+functor:
+#+begin_src haskell
+    instance Functor f => Functor (Free f) where
+      fmap f (Pure x) = Pure (f x)
+      fmap f (Free g) = Free (fmap f <$> g)
+
+    instance Functor f => Monad (Free f) where
+      return = Pure
+      Pure x >>= f = f x
+      Free g >>= f = Free ((>>= f) <$> g)
+
+#+end_src
+   
+** So what? What's it for?
+
+[[https://serokell.io/blog/introduction-to-free-monads][Introduction to Free Monads - Nikolay Yakimov]]
+#+begin_quote
+Using free monads, we can define a computation as a data structure.
+
+The data structure in question doesn’t define how the computation is
+performed.
+
+We can write a separate interpreter (or indeed many interpreters)
+that performs the actual computation in question.
+#+end_quote
+*** Trees of computations?
+
+Embedded domain specific languages (eDSL)
+
+- Abstract syntax tree (AST)
+
+- Interpreter(s)
+
+/effects expressed as ASTs that can be interpreted by handlers/!
+
+* Moving past the typeclasses
+
+/The Principle of Least Power!/
+
+Monad > Arrow > Applicative 
+
+[[https://www.reddit.com/r/haskell/comments/4fkkzo/when_does_one_consider_using_arrows/][SO: When does one consider using (say) arrows?]]
+
+Ans: Probably never :) some good comments from that discussion suggest
+not putting the cart before the horse.
+
+That is; model domain entities and their natural algebras first, only
+then see if there's some nice higher order structures that would be
+useful.
+
+✓ [[https://algebradriven.design][Algebra Driven Design - Sandy Maguire]]
+✓ [[http://conal.net/talks/denotational-design-lambdajam-2015.pdf][Denotational Design - Conal Elliot]]
+
+Then design a eDSL 🙂
+* Free summary
+
+- Any functor can be lifted into Free.
+
+- Free allows the evaluation of an AST of effects to be deferred.
+
+- This makes writing eDSLs very easy as Free monads are:
+  
+   - Composable
+     
+   - Extensible
+     
+   - allow for multiple interpretations
+     
+   - and we get /do/ notation for free (as in beer, not freedom)
+
+
+** And in the end its all the same
+
+- [[https://arxiv.org/abs/1406.4823][Notions of computations as monoids - 2017]]
+
+** But you /might/ have your cake AND eat it too:
+
+- [[https://www.youtube.com/watch?v=vfDazZfxlNs][Strange loop 2019 talk by Patrick Thompson (fused-effects & semantic)]]
+
+- [[https://hackage.haskell.org/package/effectful-core][Effectful - Andrzej Rybczak]]
+
+- [[https://github.com/hasura/eff][Alexis King (lexilambda) Eff]] see also: [[https://github.com/ghc-proposals/ghc-proposals/pull/313][ghc - delimited continuations proposal]]
+* Next?
+
+- Data types à la Carte
+
+- Tagless finally
+   
+- Denotational design
+
+- Other composable structures
+   - Arrows etc.
+
+- A look at frameworks and libraries
+   - polysemy, free, freer, eff, fused-effects, effectful
+
+[[file:chart.org][Roadmap]]
+
+* COMMENT Beyond monads
+
+  Let's look at Monad again:
+#+begin_src haskell
+  (>>=) :: Monad m => m a -> (a -> m b) -> m b  
+#+end_src
+[[https://dl.acm.org/doi/abs/10.1145/3406088.3409023][Composing Effects into Tasks and Workflows - R.Eisenberg et. al]]
+#+begin_quote 
+   The second parameter (the continuation) is a function whose argument
+   is the result of running the first parameter and we have to apply this
+   function to learn anything about the final result. Accordingly, when
+   effectful computations are structured as monads, the computational
+   effects are inter-twined with each other: it is impossible to extract
+   one kind of effect without extracting all effects and the associated
+   (pure) resulting value.
+#+end_quote
+
+
+** Motivation for [[https://www.cse.chalmers.se/~rjmh/afp-arrows.pdf][Programming with Arrows - J.Hughes]]
+#+begin_src haskell
+  (>>=) :: Parser s a → (a → Parser s b) → Parser s b
+#+end_src
+#+begin_quote
+... Recall that Swierstra and Duponcheel were unable to implement
+bind because its second argument is a function, and the only thing one
+can do with a function is apply it. Lacking a suitable value of type ~a~
+to apply it to, they could not extract any static information from it,
+and therefore could not construct the static part of (>>=)’s
+result. ---John Hughes
+#+end_quote
+[[http://www.cse.chalmers.se/~rjmh/Papers/arrows.pdf][** Generalising monads to arrows]]
+#+begin_src haskell
+  class Arrow a where
+    arr :: (b → c) → a b c
+    (>>>) :: a b c → a c d → a b d
+
+  type Kleisli m a b = K (a -> m b)
+
+  instance Monad m => Arrow (Kleisli m) where
+    arr f = K (\b → return (f b))
+    K f >>= K g = K (\b → f b >>= g)
+#+end_src
+** Applicative functors
+[[https://www.staff.city.ac.uk/~ross/papers/Applicative.pdf][McBride & Patterson]]
+#+begin_quote
+The idea is that a value of type /f a/ represents an “effectful”
+computation returning a result of type /a/. The pure method creates a
+trivial computation without any effect, and ( <*> ) allows two
+computations to be sequenced, by applying a function returned by the
+first, to the value returned by the second.
+#+end_quote
+#+begin_src haskell
+  class Functor f => Applicative f where
+    pure :: a -> f a
+
+    (<*>) :: f (a -> b) -> f a -> f b
+    (<*>) = liftA2 id
+
+    liftA2 :: (a -> b -> c) -> f a -> f b -> f c
+    liftA2 f x = (<*>) (fmap f x)
+#+end_src
+
+** Positioning arrows 
+#+begin_quote
+Monads are opaque to static analysis, and applicative functors are
+poor at expressing dynamic-time data dependencies.
+
+It turns out arrows can provide a sweet spot between the two: by
+choosing the purely functional and the arrowized inputs carefully, it
+is possible to create an interface that allows for just the right
+interplay of dynamic behaviour and amenability to static
+analysis. ---Gergo Erdi
+#+end_quote
+
+** Alternate formulation of Arrows
+Turns out Arrows can be cast in terms of:
+  + A Category
+    #+begin_src haskell
+      class Category cat where
+      -- | the identity morphism
+      id :: cat a a
+      -- | morphism composition
+      (.) :: cat b c -> cat a b -> cat a c
+    #+end_src
+  + And a Profunctor (actually Strong?)
+    #+begin_src haskell
+      -- | Map over both arguments at the same time.
+      -- dimap f g ≡ lmap f . rmap g
+      dimap :: (a -> b) -> (c -> d) -> p b c -> p a d
+      dimap f g = lmap f . rmap g
+      -- | Map the first argument contravariantly.
+      -- lmap f ≡ dimap f id
+      lmap :: (a -> b) -> p b c -> p a c
+      lmap f = dimap f id
+      -- | Map the second argument covariantly.
+      -- rmap ≡ dimap id
+      rmap :: (b -> c) -> p a b -> p a c
+      rmap = dimap id
+    #+end_src
+
+* COMMENT Notes on eDSLs
+
+** Shallow and Deep Embeddings
+
+[[https://en.wikipedia.org/wiki/Expression_problem][The Expression Problem]]
+#+begin_quote
+...This comparison [[papers/svenningsson2015combining.pdf][1]] shows that shallow and deep embeddings are dual
+in the sense that the former is extensible with regards to adding
+language constructs while the latter is extensible with regards to
+adding interpretations. The holy grail of embedded language
+implementation is to be able to combine the advantages of shallow and
+deep in a single implementation. This is an instance of the expression
+problem...
+#+end_quote
+
+** eDSL Recipe:
+
+1. Implement a deeply embedded core language. The aim of the core lan-
+   guage is not to act as a convenient user interface, but rather to
+   support efficient generation of common code patterns in the target
+   language. For this reason, the core language should be kept as
+   simple as possible.
+   
+2. Implement user-friendly interfaces as shallow embeddings on top of
+   the core language. Each interface is represented by a separate type
+   and operations on this type.
+   
+3. Give each interface a precise meaning by giving a translation to
+   and from a corresponding core language program. In other words,
+   make the deep embedding the semantic domain of the shallow
+   embedding. This is done by means of type class instantiation. If
+   such a translation is not possible, or not efficient, extend the
+   core language as necessary.
+
+
+* COMMENT Topic Map
+#+begin_src dot :file "sof-map.png"
+  digraph {
+    Eff [label="Effects"]
+    Kle [label="Kleisli Arrows"]
+    Mon [label="Monad"]
+    Fre [label="Free structure"]
+    Frm [label="Free Monad"]
+
+    Eff -> Kle [label=" abstraction"]
+    Kle -> Mon [label=" composition"]
+    Mon -> Fre [label=" fiat"]
+    Fre -> Frm [label=" analogy"]
+  }
+#+end_src
+
+#+RESULTS:
+[[file:sof-map.png]]

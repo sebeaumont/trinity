@@ -1,0 +1,13 @@
+#+TITLE: Programming Language Foundations
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+
+The idea would be to follow along Programming Languages Foundations
+[[https://plfa.github.io][which is an executable book in literate Agda]]
+
+Wadler, Philip, Wen Kokke, and Jeremy G. Siek. Programming Language
+Foundations in Agda. Available at https://plfa.inf.ed.ac.uk/22.08/. 2022.
+
+My progress on this has been feeble but I learned to love using Agda -
+there's something very satisfying about doing these basic proofs. [[https://github.com/sebeaumont/myplta][My
+PLFA exercises.]]

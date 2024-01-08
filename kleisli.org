@@ -1,0 +1,67 @@
+#+TITLE: The Kleisli Category
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+#+BIBLIOGRAPHY: papers/citations.bib
+#+STARTUP: inlineimages overview latexpreview indent
+#+LATEX_HEADER: \usepackage{tikz}
+#+LATEX_HEADER: \usetikzlibrary{positioning, quotes, arrows}
+#+OPTIONS: tex:imagemagick
+
+* In terms of Kleisli arrows
+
+   The Kleisli category ~C~ of a monad ~T~ on a category ~C~
+
+** Monad
+
+   Let ~T = (T,μ,η)~ be a monad in ~C : Cat~ where ~T : C -> C~
+   is an endofunctor with:
+
+   - multiplication: ~μ : TT -> T~, (join)
+
+   - unit: ~η : Id_C -> T~.       (return)
+     
+
+** Objects
+
+   The objects are the objects of the base category ~C~
+   
+** Mophisms
+
+   Morphisms are of the form ~M -> T(N)~ where the
+   underlying morphisms in the category are ~M -> N~.
+
+** Identity
+
+Identity morphism on ~M~ is the /T-unit/ ~M -> T(M)~
+
+** Composition
+   Given morphisms ~f : M -> T(N)~ and ~g : N -> T(P)~
+   Composition is given by:
+
+   [[./kleisli-fig1.png]]
+   
+* COMMENT Appendices
+*** COMMENT Figure 1
+#+begin_src latex :file "kleisli-fig1.png"
+  \begin{equation*}
+    \resizebox{7cm}{!}{%
+      \begin{tikzpicture}[node distance=2cm, auto]
+        \node (M) {$M$};
+        \node (TN) [right of=M] {$T(N)$};
+        \node (TTP) [below of=TN] {$T(T(P))$};
+        \node (TP) [below of=TTP] {$T(P)$};
+        \draw [->] (M) to node {$f$} (TN);
+        \draw [->] (TN) to node {$T(g)$} (TTP);
+        \draw [->] (TTP) to node {$\mu_P$} (TP);
+        \draw [->] (M) to node [swap] {$g \circ_{kleisli} f$} (TP);
+      \end{tikzpicture}
+    }
+  \end{equation*}
+#+end_src
+
+#+RESULTS:
+#+begin_export latex
+#+end_export
+
+
+   

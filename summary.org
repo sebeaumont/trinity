@@ -1,0 +1,200 @@
+#+TITLE: My Takeaways
+#+AUTHOR: Simon Beaumont
+#+EMAIL: datalligator@icloud.com
+
+#+BIBLIOGRAPHY: papers/citations.bib
+#+STARTUP: inlineimages overview latexpreview indent
+#+LATEX_HEADER: \usepackage{tikz}
+#+LATEX_HEADER: \usetikzlibrary{positioning, quotes, arrows}
+#+OPTIONS: tex:imagemagick
+
+* Computational Trinitarianism
+
+How programming is mathematics, and perhaps more importantly; how
+mathematics is programming. Don't take my word for it, see: [[https://www.youtube.com/watch?v=RcTaweZMEzo][Robert Harper]].
+
+#+begin_quote
+Science offers the boldest metaphysics of the age. It is a thoroughly
+human construct, driven by the faith that if we dream, press to
+discover, explain, and dream again, thereby plunging repeatedly into
+new terrain, the world will somehow come clearer and we will grasp the
+true strangeness of the universe. And the strangeness will all prove
+to be connected, and make sense. -- E. O. Wilson (1929-2021)
+#+end_quote
+
+Everything I've seen so far and how it all makes sense.
+
+** Effects and arrows
+
+It all started with a look at the representation of
+computational effects in /Haskell/ this led to the modelling of
+partial functions ~f : A ⇀ B~ and thus to the /Kleisli arrow/
+~f : A → T(B)~ for some /monad/ ~T~ and thence to the understanding of
+ /monad/ as the thing that enables composition of /Kleisli arrows/.  
+
+See: [[./kleisli.org][A more formal view of Kleisli category]]
+
+** Free structure
+
+Is a way of making one mathematical object look like another, subject
+to a minimalistic principle that the "dressing" required to make the
+embedding work are such that the laws governing the desired structure are
+/only/ those that are required by that structure and the "dressing" be
+as /simple as possible/ (no baggage or superflous decoration). Nice.
+
+A more formal defintion of this is to be found in the fundamental
+ideas of /homomorphism/ and /initial/ and /terminal/ objects of
+Category theory.
+
+See: [[./algebraofalgebra.org][Notes on category theory]]
+
+** Group-like structures
+
+This is the zoo of algebraic structures we may encounter, or whose
+properties/laws we may wish to leverage; with varying burdens of proof.
+
+| Structure          | Totality[1] | Associativity | Identity | Inverse | Commutativity |
+|--------------------+-------------+---------------+----------+---------+---------------|
+| Semigroupoid       |             | ✓             |          |         |               |
+| Small category     |             | ✓             | ✓        |         |               |
+| Groupoid           |             | ✓             | ✓        | ✓       |               |
+| Magma              | ✓           |               |          |         |               |
+| Quasigroup         | ✓           |               |          | ✓       |               |
+| Unital magma       | ✓           |               | ✓        |         |               |
+| Semigroup          | ✓           | ✓             |          |         |               |
+| Loop               | ✓           |               | ✓        | ✓       |               |
+| Monoid             | ✓           | ✓             | ✓        |         |               |
+| Group              | ✓           | ✓             | ✓        | ✓       |               |
+| Commutative monoid | ✓           | ✓             | ✓        |         | ✓             |
+| Abelian group      | ✓           | ✓             | ✓        | ✓       | ✓             |
+
+[1] Totality here is equivalent to the closure axiom.
+
+A powerful technique of mathematics and programming is that of re-use; If we
+can show that our structure or object conforms to a well understood
+abstractions as above, we can inherit the relevant theorems and proofs with
+impunity. We may even get free as in beer along with free as in
+freedom!
+
+** Monads categorically via. Kleisli compostion
+
+See: [[./story-of-effects.org][Taming of effects in Haskell]]
+
+Also see this presentation of the categorical perspective and a good
+way to think about monads:
+
+[[https://www.stephendiehl.com/posts/monads.html][Monads made difficult - Stephen Diehl]]
+
+** Monoidal category
+
+Also known as a /tensor category/ for reasons that will be apparent.
+
+See: [[./algebraofalgebra.org][Intro to the categorical approach]]
+
+A monoid in a /monoidal category/ has:
+
+| object         | ~M~              |
+| unit           | ~e : I -> M~     |
+| multiplication | ~m : M ⊗ M -> M~ |
+
+such that:
+
+~m ∘ (id_M ⊗ e) = u_l~
+~m ∘ (e ⊗ id_M) = u_r~
+~m ∘ (id_M ⊗ m) = m ∘ (m ⊗ id_M) ∘ α~
+
+Where:
+
+~u_l : M ⊗ I -> M~ and
+~u_r : I ⊗ M -> M~
+
+are the identity isomorphisms for the monoidal category, and
+
+~α : M ⊗ (M ⊗ M) -> (M ⊗ M) ⊗ M~
+
+is part of the associativity isomorphism of the category.
+
+#+begin_quote
+So, hopefully the connection is clear: we've generalized the carrier
+set to a carrier object, generalized the operations to morphisms in a
+category, and equational laws are promoted to being equations about
+composition of morphisms. -- See: [[https://wiki.haskell.org/Free_structure#Free_Monads][Haksell Wiki on Free Structure]] 
+#+end_quote
+
+** Monads as monoids
+
+A /monad/ can be cast as a class of monoid objects. Given a category
+$\mathcal{C}$ we invoke the monoidial category $\mathcal{C^C}$ as above.
+
+| objects are endofunctors         | ~F : C -> C~                            |
+| morphisms                        | natural transformations betwen functors |
+| tensor product is composition    | ~F ⊗ G = F ∘ G~                         |
+| identity is the identity functor | ~I~                                     |
+
+Via specialisation to a /monad/ we have:
+
+| an endofunctor         | ~M : C -> C~     |
+| natural transformation | ~η : I -> M~     |
+| natural transformation | ~μ : M ∘ M -> M~ |
+
+So /monad/ is a /monoid/ in the /category of endofunctors/.
+
+See also: [[./algebraofalgebra.org][The categorical perspective]]
+
+** The Free monad
+
+There are two aspects to this construction:
+
+1. The ability to compose effectful computations via Kleisli arrows and
+   monadic actions.
+
+   See: [[./story-of-effects.org][Modelling effects]]
+
+2. To encode a program as a tree of computational actions restricted in
+   effect by stronly typed co-products.
+
+   See: [[./examples/src/Examples/DTALC.org][Data Types a la Carte]]
+** WIP Algebraic Theories
+** WIP Non-monadic effects
+
+
+[[./story-of-effects.org][Some stuff on arrows/applicatives hidden in here]]
+
+** WIP Domain specfic languages
+
+[[./story-of-effects.org][Some eDSL stuff hideen in here]]
+** WIP Trinitarianism
+
+ [[./trinity.png]]
+
+*** References
+
+- See /nLab/ on [[https://ncatlab.org/nlab/show/computational+trilogy][trinitarianism]]
+  
+- Short video [[https://www.youtube.com/watch?v=DAGJw7YBy8E][John Baez on symmetric monoidial categories]]
+
+- Bob Harper, Steve Awodey et.al. (OPLSS 2012-)
+
+*** Homotopy Type Theory
+
+Proposed as a new foundations for mathematics. Homotopy Type Theory (HoTT)
+represents the primary /trinitarian/ research direction; seeking to
+unify ideas from Intuitionistic (Per-Martin Löf) type theory,
+algebraic topology and higher categories.
+
+~A : Type~
+
+| Proof theoretically            | ~A~ is a /proposition/               |
+| Type theoretically             | ~A~ is a /construction/ or /program/ |
+| Geometrically or categorically | ~A~ is a /space/                     |
+
+*** Agda and Dependent Type Theory
+
+I have been learning Agda and there's a whole bunch of (Per-Martin
+Löf) type theory and intuitionistic logic to report on. Watch this space.
+
+- [[https://plfa.inf.ed.ac.uk][Programming languages foundations in Agda]]
+- Cubical Agda and HoTT
+- [[https://thehottgameguide.readthedocs.io/en/latest/#][The HoTT Game]]
+- [[https://www.cs.bham.ac.uk/~mhe/HoTT-UF-in-Agda-Lecture-Notes/HoTT-UF-Agda.html#contents][Univalent foundations in Agda]]
+

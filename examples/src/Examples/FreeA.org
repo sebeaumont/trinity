@@ -1,0 +1,27 @@
+{- |
+Synopsis: Free applicatives
+Author:   Simon Beaumont
+Email:    datalligator@icloud.com
+-}
+module Examples.FreeA
+  where
+
+-- | Left associative
+data FreeAL f a
+  = PureL a
+  | forall b. FreeAL f (b -> a) :*: f b
+infixl 4 :*:
+  
+-- | Right associative
+data FreeA f a
+  = Pure a
+  | forall b. f (b -> a) :$: FreeA f b
+infixr 4 :$:
+
+-- Since the two versions are iso-morphic; the right version is chosen
+-- pragmatically as it is easier to define Functor and Applicative
+-- instances for this.
+
+
+
+  

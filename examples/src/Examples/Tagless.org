@@ -1,0 +1,198 @@
+#+TITLE:  Tagless encoding of expressions
+#+AUTHOR: Simon Beaumont 
+#+EMAIL:  datalligator@icloud.com
+#+STARTUP: inlineimages overview indent latexpreview
+
+* Tagless finally!
+
+Provide the extensible expression language of DTALC using only simple
+things.
+
+#+begin_src haskell :tangle yes
+  module Examples.Tagless where
+#+end_src
+
+* Initially  
+
+The final (as opposed to initial) thing here, is that we will not have an
+intermediate type to represent expressions.
+
+Buts let's start with the /initial/ encoding of our simple language
+
+#+begin_src haskell :tangle yes
+  data Exp
+    = Lit Int
+    | Add Exp Exp
+#+end_src
+
+* The running example is written:
+
+#+begin_src haskell :tangle yes
+  expi :: Exp
+  expi = Add (Lit 23) (Lit 20)
+#+end_src
+
+* This can be be evaluated easily
+
+And we can add multiple interepreters but exhibits the /expression
+problem/ when we wish to extend the language.
+
+#+begin_src haskell :tangle yes
+  eval :: Exp -> Int
+  eval (Lit i) = i
+  eval (Add e1 e2) = eval e1 + eval e2
+#+end_src
+
+* A metacircular or /final/ embedding
+
+This is very easy to extend but has the interpreter hardwired into the
+representation.
+#+begin_src haskell 
+  type Repr = Int
+
+  lit :: Int -> Repr
+  lit n = n
+
+  add :: Repr -> Repr -> Repr
+  add e1 e2 = e1 + e2
+
+  expf = add (lit 23) (lit 20)
+#+end_src
+** However
+
+This makes the /initial/ encoding appear more general, e.g. where we can
+supply further interpreters, for say pretty printing:
+
+#+begin_src haskell :tangle yes
+  render :: Exp -> String
+  render (Lit i) = show i
+  render (Add e1 e2) = "(" <> render e1 <> " + " <> render e2 <> ")"
+#+end_src
+#+begin_src haskell
+  render expi
+#+end_src
+
+#+begin_src haskell
+  :t expi
+#+end_src
+
+* Using a typeclass
+
+We can parameterise the result type.
+
+This will allow us to extend the /final/ encoding with additional
+interpreters.
+#+begin_src haskell :tangle yes
+  class ExpS repr where
+    lit :: Int -> repr
+    add :: repr -> repr -> repr
+#+end_src
+
+Notice the /final/ representation is now as polymorphic Haskell
+values.
+
+
+*** The representation is a parameter
+#+begin_src haskell
+  expf = add (lit 23) (lit 20)
+  :t expf
+#+end_src
+
+#+RESULTS:
+: expf :: ExpS repr => repr
+
+* Interpret finally encoded expressions
+
+When we write an instance of ~ExpS~ the typeclass provides the syntax
+and the instances provide the semantics (the S in ExpS).
+#+begin_src haskell :tangle yes
+  instance ExpS Int where
+    lit n = n
+    add e1 e2 = e1 + e2
+#+end_src
+The evaluator is now a /selector/ of an interpretation, that does not
+dispatch on constructor patterns i.e. is /tagless/.
+#+begin_src haskell :tangle yes
+  eval' :: Int -> Int
+  eval' = id
+#+end_src
+
+* So e.g. a pretty printer
+
+#+begin_src haskell :tangle yes
+  instance ExpS String where
+    lit n = show n
+    add e1 e2 = "(" <> e1 <> " + " <> e2 <> ")"
+#+end_src
+
+With the associated /selector/ function 
+
+#+begin_src haskell :tangle yes
+  pprint :: String -> String
+  pprint = id
+#+end_src
+
+#+begin_src haskell :type verbatim
+  pprint $ add (lit 23) (lit 20)
+#+end_src
+
+#+RESULTS:
+| 23 | + | 20 |
+
+* The expression problem solved
+
+We can now extend the expression language without touching pre-existing
+implementation using /typeclasses/:
+
+#+begin_src haskell :tangle yes
+  class ExpMulS repr where
+    mul :: repr -> repr -> repr
+#+end_src
+
+*** We can immediately write new expressions:
+
+#+begin_src haskell
+  expf2 = mul (lit 2) (add (lit 23) (lit 20))
+  :t expf2
+#+end_src
+
+#+RESULTS:
+: expf2 :: (ExpMulS repr, ExpS repr) => repr
+
+*** And extend our interpreters:
+
+#+begin_src haskell :tangle yes
+  instance ExpMulS Int where
+    mul e1 e2 = e1 * e2
+  instance ExpMulS String where
+    mul e1 e2 = "(" <> e1 <> " * " <> e2 <> ")"
+#+end_src
+Such that the type inference works!
+#+begin_src haskell :type verbatim
+  eval' expf2
+#+end_src
+
+#+RESULTS:
+: 86
+#+begin_src haskell :type verbatim 
+  pprint expf2
+#+end_src
+#+RESULTS:
+| 2 | * | (23 + 20) |
+
+* Extract
+[[file:papers/final-tagless-lecture.pdf][Typed Tagless Final Interpreters]]
+#+begin_quote
+"We have learned to appreciate type-constructor polymorphism as a
+mechanism for translucent abstractions. The parameterization over the
+type constructor ... lets just enough information out, to type-check
+an embedded term, but hides the representation details, thus
+permitting many and varied interpretations. We have confirmed the
+old insight from /denotational semantics/ that making context explicit
+turns seemingly non-compositional operations compositional. We have
+also learned that the typed tagless final approach often leads to
+simpler-typed DSL embeddings, requiring a less sophisticated type
+system of the metalanguage, compared to the initial approach."
+
+-- Oleg Kiseylov [[file:papers/final-tagless-lecture.pdf][Typed Tagless Final Interpreters]]
+#+end_quote

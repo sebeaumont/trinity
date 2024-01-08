@@ -1,0 +1,21 @@
+#+TITLE: Computational Trinitarianism
+#+AUTHOR: Simon Beaumont
+
+Started (and ended) in 2013, a collection of mainly literate org files
+(that can be tangled to some /Haskell/ if required), containing a
+smattering of type and category theory picked up and presented whilst
+investigating the state of the art in /Haskell/ effects.
+
+This ended up as a run through the main tenets of computational
+trinitarianism and getting back to basics with /Agda/.
+
+Provided here for interest and posterity only.
+
+** What's here
+
+- [[./summary.org][Summary of my understanding of key ideas]]
+  
+- [[chart.org][Guide to contents]] (could form basis a FP course)
+
+- [[haskell-effects.org][Reviewed material on effects]] (the initial motivation but not that
+  relevant now)

@@ -1,0 +1,287 @@
+* Effects in Haskell - A review of the state of the art.
+
+** Pre-requisites
+
+Overview/review of
+
+  - [X] Arrows
+  - [X] Categories
+  - [X] Bifunctors (covariant functors on two arguments)
+  - [X] Profunctors (functors on two args respectively contra/co-variant)
+  - [X] Free monads
+  - [X] Final tagless
+  - [X] Algebraic Effects
+
+** The categorical imperative
+
+[[./algebraofalgebra.org][Intro to Category Theory]] 
+
+** List of references (important/seminal papers wot I av red or am)
+
+| Paper                                         | Author                                  | Notes                                                              |
+|-----------------------------------------------+-----------------------------------------+--------------------------------------------------------------------|
+| [[papers/afp-arrows.pdf][Programming with arrows]]                       | John Hughes                             | Seminal arrows                                                     |
+| [[papers/applicative.pdf][Applicative programming with effects]]          | Connor McBride, Ross Paterson           | Seminal applicative functors                                       |
+| [[papers/arrows-and-idioms.pdf][Idioms are oblivious...]]                       | Sam Lindley, Phil Wadler, Jeremy Wallop | Theoretical comparison (a bit theory rich for my level)            |
+| [[papers/category-theory-for-programmers.pdf][Category Theory for Programmers]]               | Bartosz Milewski                        | Gateway drug to cat theory (five star recommendation)              |
+| [[papers/compiling-embedded-languages.pdf][Compiling embedded languages]]                  | Conal Elliot, et.al.                    | Practical development of embedded language                         |
+| [[data-types-a-la-carte.pdf][Data types a la carte]]                         | Wouter Wesistra                         | Influential Functional pearl solving Wadler's "expression problem" |
+| [[file:papers/final-tagless-lecture.pdf][Typed Tagless Final interpreters]]              | Oleg Kiseylov                           | Also influential approach to expression problem and much more      |
+| [[papers/eisenberg-workflows.pdf][Composing effects into tasks and workflows]]    | Richard Eisenberg et.al.                | TODO                                                               |
+| [[papers/freeapplic.pdf][Free applicative functors]]                     | Paulo Capriotti, Ambrus Kaposi          | TODO                                                               |
+| [[papers/freer-monads.pdf][Freer monads more extensible effects]]          | Oleg Kiseylov, Heromi Ibdi              | Theoretical basis of most modern Free monad implementations        |
+| [[papers/hughes-arrows.pdf][Generalising monads to arrows]]                 | John Hughes                             | More arrows from the inventor                                      |
+| [[papers/moggi89.pdf][Computational lambda caculus and monads]]       | Eugenio Moggi                           | Seminal monad paper                                                |
+| [[papers/notions-of-computation-as-monoids.pdf][Notions of compuatations as monoids]]           | Exequiel Rivas, Mauro Jaskelioff        | A unifying categorical look at all the functors                    |
+| [[papers/svenningsson2015combining.pdf][Combining deep and shallow embeddings of DSLs]] | Josef Svenningsson, Emil Axelson        | Have your cake and eat it too absraction of eDSls                  |
+| [[papers/wadler-arrows.pdf][The arrow calculus]]                            | Yallop, Lindley, Wadler                 | TODO Type theoretic look at arrows                                 |
+
+
+** TODO State of art in Haskell libraries and frameworks
+
+Evaluate (see [[file:matrix.org][matrix]]) for following approaches:
+
+| Package       | Principal Author  | Notes                                                   |
+|---------------+-------------------+---------------------------------------------------------|
+| [[https://github.com/polysemy-research/polysemy#readme][polysemy]]      | Sandy Maguire     |                                                         |
+| [[https://github.com/lexi-lambda/freer-simple][freer-simple]]  | Alexis King       |                                                         |
+| [[https://github.com/hasura/eff][eff]]           | Alexis King       | +ghc delimited continuations proposal                   |
+| [[https://github.com/re-xyr/cleff#readme][cleff]]         | daylily           |                                                         |
+| [[https://github.com/haskell-effectful/effectful][effectful]]     | Andrzej Rybczak   | [[https://github.com/haskell-effectful/effectful/blob/master/benchmarks/README.md][Benchmarks]]                                              |
+| [[https://github.com/tweag/kernmantle][kermantle]]     | Richard Eisenberg | [[https://richarde.dev/papers/2020/workflows/workflows.pdf][Composing binary effects into (data) workflows]]          |
+| [[https://github.com/graninas/hierarchical-free-monads-the-most-developed-approach-in-haskell][hfm]]           | Alexander Granin  | [[https://github.com/graninas/Functional-Design-and-Architecture][Functional Design and Architecture]] [[https://github.com/effectfully-ou/sketches/tree/master/hierarchical-free-monads-mostly-pointless][HFM mostly pointless]] |
+| [[https://github.com/fused-effects/fused-effects][fused-effects]] | Patrick Thompson  | [[https://www.youtube.com/watch?v=vfDazZfxlNs][Strange loop 2019 talk]]                                  |
+
+
+** TODO Binary Effects (Eisenberg)
+
+  1. Model them as (G)ADTs and write interpreter functions
+  2. Compose them from regular applicative/monadic effects (Reader,
+     Writer, State etc.)
+  3. Reuse existing binary effects (Categories, Arrows, Profunctors
+     etc.)
+  4. Take the Product (from bifunctors) of 2 different binary effects.
+     They are composed in parallel: results from one cannot be passed to
+     the other.
+
+
+** Free monads
+      
+[[https://stackoverflow.com/questions/13352205/what-are-free-monads][What are Free Monads?]]
+
+#+BEGIN_QUOTE
+  Here's an even simpler answer: A Monad is something that
+  "computes" when monadic context is collapsed by
+
+  #+BEGIN_SRC haskell
+  join :: m (m a) -> m a
+  #+END_SRC
+  recalling that >>= can be defined as
+  #+BEGIN_SRC haskell
+  x >>= y = join (fmap y x)
+  #+END_SRC
+    
+  This is how Monads carry context through a sequential chain
+  of computations: because at each point in the series, the context
+  from the previous call is collapsed with the next.
+
+  A free monad satisfies all the Monad laws, but does not do any
+  collapsing (i.e., computation). It just builds up a nested series
+  of contexts. The user who creates such a free monadic value is
+  responsible for doing something with those nested contexts, so
+  that the meaning of such a composition can be deferred until after
+  the monadic value has been created.
+  #+END_QUOTE
+
+  [[https://serokell.io/blog/introduction-to-free-monads][An Introduction to Free Monads]]
+  So far this is my favorite Free monad tutorial (highly recommended
+  if theoretical underpinnings are important for ones understanding)
+  and very well written and structured with examples and exercises.
+  
+  #+BEGIN_QUOTE
+  Using free monads, we can define a computation as a data
+  structure. Here, “computation” is a very broad term. The data
+  structure in question doesn’t define how the computation is
+  performed, and we can write a separate interpreter (or indeed many
+  interpreters) that performs the actual computation in question.
+  #+END_QUOTE
+    
+    | Articles/Posts of Note             | Author             |
+    |------------------------------------+--------------------|
+    | [[https://markkarpov.com/post/free-monad-considered-harmful.html][Free monads considered harmful]]     | Mark Karpov        |
+    | [[https://www.haskellforall.com/2012/06/you-could-have-invented-free-monads.html][Why free monads matter]]             | Gabriella Gonzales |
+    | [[https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html][What does free buy us?]]             | Matt Parsons       |
+    | [[https://www.youtube.com/watch?v=n3H_YipBDrY][The path to Haskell complexities]]   | Vitaly Bragilevsky |
+    | [[http://comonad.com/reader/2008/monads-for-free/][Monads for free]]                    | Edward Kmett       |
+    | [[https://serokell.io/blog/introduction-to-free-monads][Introduction to Free Monads]]        | Nikolay Yakimov    |
+    | [[https://www.tweag.io/blog/2018-02-05-free-monads/][Free Monads for Cheap Interpreters]] | James Haydon       |
+    | [[https://serokell.io/blog/introduction-tagless-final][Introduction to tagless final]]      | Vasiliy Kevroletin |
+    | [[https://github.com/effectfully-ou/sketches/tree/master/hierarchical-free-monads-mostly-pointless][HFM mostly pointless]]               | effectfully        |
+    | [[http://blog.sigfpe.com/2008/12/mother-of-all-monads.html][Mother of all monads]]               | Dan Piponi         |
+
+
+** TODO: Summarize: Alexis King - unresolved challenges of scoped effects (twitch cast) 
+
+** Continuation Monads cannot form a Lawvere theory.
+
+  | Lecture                                     | Author      |
+  |---------------------------------------------+-------------|
+  | [[https://www.youtube.com/watch?v=Ssx2_JKpB3U&list=TLPQMDQwOTIwMjIocoSoSBcFgg&index=1][A categorical view of computational effects]] | Emily Riehl |
+
+  This is a very accessible and fresh view of effects by a Cat theorist
+  and might explain why there is a problem at the heart of the Free
+  monad approach.
+  
+    
+** Alexander Granin - Functional Design and Architecture: Free monads, DSLs
+
+  TLDR;
+
+  Caution: Alexander's writing style makes it easy to doubt his
+  seriousness (something that has invited vitriolic attack on his
+  claims for hierarchical free monads (HFM) but not referenced here at
+  the request of that author; a more measured critique is available at
+  [[https://github.com/effectfully-ou/sketches/tree/master/hierarchical-free-monads-mostly-pointless][HFM mostly pointless]])
+   
+  While most of the content of the (MEAP) edition of the book
+  addresses general design principles, rather than effects systems
+  per-se; there is a overview of composing Free monads w.r.t defining
+  and dispatching DSL's.
+  
+  My advice would to be to jump in at Chapter 7. for a summary around
+  stateful applications even if the (long running) examples will not
+  be so clear as a result maybe read Chapter 6. which details the
+  application of free monads in the construction of eDSLs if you are
+  not familiar with Free monads.
+
+  He jumps around in his development and often the conclusions and
+  exposition are left deferred for future sections/writing. E.g. I'm
+  still waiting for the section on logging to be satisfactorily
+  concluded.
+
+  The main tenets of his thesis are:
+
+   1) Do structured design using common patterns adapted for FP.
+     
+   2) eDSLs and respective interpreters are a goto pattern for
+      functional design.
+     
+   3) Free monads (Hierarchical Free Monads) are a powerful way to
+      construct eDSLs.
+
+   Here some quotes from the book that give a flavour of the approach:
+
+*** Chapter 2 The basics of functional declarative design
+  #+BEGIN_QUOTE
+  In functional programming, it's good to have an architecture in two forms:
+
+  - Topology of layers, modules, and subsystems.
+    This can be either described by diagrams or implemented in the
+    project structure. The hints for how to define functionality for
+    modules lie in our requirements model, and we will extract them
+    from mind maps directly.
+  
+  - DSL interfaces for domain model, subsystems, and services.
+    A set of DSLs on top of a subsystem can be thought of as the
+    functional interface of that system. We can use model-driven
+    development to build DSLs for our domain model.
+  #+END_QUOTE
+  
+  #+BEGIN_QUOTE
+  In this architecture approach, it becomes clear that Free monadic
+  eDSLs should interact somehow when this makes sense. If we want to
+  place the methods of the two Free languages into the same script,
+  this script should know about both of the languages. This is where
+  the idea of Free monad effect systems occurs, - but it occurs in the
+  community, not in FDD. I’m proposing another way, that is simpler
+  and quite enough for doing impressive things. Free monadic languages
+  can be nested. Methods of a language can refer to other languages,
+  and this helps to build hierarchies of Free monads. I call this
+  approach Hierarchical Free Monads (HFM)...
+  #+END_QUOTE
+
+*** Chapter 5 Embedded domain-specific languages
+  #+BEGIN_QUOTE
+  Software development is a difficult job. Developers do make wrong
+  decisions, and it happens more often than it actually
+  should. Developers do write incorrect code, and it happens against
+  their will most likely. Developers feel lost in complex business
+  domains, broad and contradictory requirements, and mind-bending
+  technologies, each of which can turn anyone into depression when
+  something goes wrong. Nothing is perfect; nobody is a superman.
+  #+END_QUOTE
+
+*** Chapter 6 Domain modeling with Free monads
+  #+BEGIN_QUOTE
+  6.1.1 The Free monad pattern
+  
+  The Free monad, which comes from the depths of category theory, is
+  used to wrap some (but not all) types into a monad. Applications of
+  the Free monad usually live in the academic part of functional
+  programming, but there is one important functional pattern we can
+  adopt in practical development. The Free monad pattern helps you to
+  separate subsystem interface from subsystem implementation and provide
+  an eDSL that your clients can use to describe scenarios for your
+  subsystem without knowing the implementation details. In this case, an
+  eDSL will be a free monadic language that reflects the logic of your
+  subsystem in a safe, concise way.
+
+  There are three key points of this pattern:
+
+  - declarative Free monad eDSL;
+  - declarative Free monadic scenarios of one’s business logic and domain;
+  - Free interpreters to sew the declarations and implementations.
+  #+END_QUOTE
+
+  #+BEGIN_QUOTE
+  I won’t be probably wrong if I say that most of the codebases don’t
+  even try to keep business logic pure, separated from the real IO. Most
+  of the codebases work in the IO instantly, and such code isn’t
+  interpretable, it’s immediately evaluable.
+  #+END_QUOTE
+
+  #+BEGIN_QUOTE
+  It’s a bit more difficult to explain why the crafty recursive Free
+  type reduces everything to a single type. But it really does. It
+  acts as a Russian nesting doll and does so on both levels: on the
+  value level, and on the level of types.
+
+  ...
+  
+  Essentially, the Free type represents the fixed point combinator. In
+  turn, the fixed point combinator is a fundamental representation of
+  recursion in lambda calculus.
+  #+END_QUOTE
+
+  #+BEGIN_QUOTE
+  As you can see, the Free monad pattern has a lot of advantages over
+  the algebraic interfaces we were creating earlier. But there are
+  some disadvantages too:
+
+  - Because it's a monad, the user should know monads well to use your
+    language.  
+
+  - The Free monad requires that the language be a functor. Although
+    it's an easy transformation for your language, you need to
+    understand what it’s for. However, other Free monads such as
+    Church-encoded Free monads, do not have this restriction. But
+    possibly have their own, so the topic is a bit wider than
+    described in this introductory chapter.
+
+  - The theory behind the Free monad is complex. For example, the Free
+    type has a recursive value constructor that’s kind of the fixpoint
+    notion (the mathematical concept of recursive operation). Also,
+    converting a language into the Free monad form looks like a
+    magical hack. But it's not magic, it's science. The good thing is
+    that you can use the Free monad in practice without knowing the
+    theory at all.
+
+  - It's hard (sometimes impossible) to convert your language into the
+    Free monad form when it’s made of advanced functional concepts:
+    GADTs, phantom types, type-level logic, and so on. This probably
+    means you need another approach to the problem.
+
+  - Some implementations of the Free monad can be slow as they
+    approximate O(n^2) in the binding mechanism. But there are other
+    Free monads, so this is not a problem.
+  #+END_QUOTE

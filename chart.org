@@ -1,0 +1,134 @@
+#+TITLE: A guide to contents and topic navigation
+#+AUTHOR: Simon Beaumont
+#+EMAIL:  datalligator@icloud.com
+
+* A guide to the contents and navigations of this repository
+
+In general org files in the top level are named by topic and offer
+code and commentary in a presentation or top to bottom reading
+style. Fuller examples and derivations are to be found the [[./examples][examples]]
+project. Other projects around effects are intended for more
+engineering focussed exploration of libraries and frameworks.
+
+** [[file:chart.png][Flowchart of topics]]
+
+An opiniated tour of the territory I've covered so far
+(or in the process of). It might be nice to use this as a starting
+point for discussion on the direction and relevance of various topics.
+
+
+** List of modules
+
+- B3 [[./algebraofalgebra.org][Intro to categories and algebra of types]]
+
+  What's a monoid, fucntor, natural transformation? How do they play
+  out in Haskell? ,onoidial and functorial categories.
+
+- I1 [[file:story-of-effects.org][Effects up to Free monads]]
+
+  How effects are modelled in pure languages; T-programs; Kleisli and
+  monads; Free construction and why we care; Issues and directions for
+  effects frameworks; eDSLs as a paradigm; Categories for the working
+  programmer. (1Hr)
+  
+- I2 [[file:examples/src/Examples/DTALC.org][Data types a la carte etc.]]
+
+  Type level programming in Haskell; Nominal vs. structural types;
+  Where are the types?; The expression problem; deep and shallow; Free
+  monads again. (1Hr)
+  
+- I3 [[file:examples/src/Examples/Tagless.org][Finally tagless upto expression problem]]
+
+  What if I can't/won't do fancy type wrangling. How has the
+  expression problem been solved in Haskell98? (45 mins)
+
+- B4 Compiling to Categories - Conal Elliott
+
+  [[https://www.youtube.com/watch?v=vzLK_xE9Zy8][Lambda Jam 2017]] 
+  [[https://www.youtube.com/channel/UC1j4K875i9geeirW_kEKRCQ][Demonational Design YouTube channel]]
+  
+  Conal Elliott's work on transforming the typed lambda calculus
+  (Haskell) by eliminating lambda (and thus being able to overload it)
+  into Cartesian Closed Categories and then re-interpreting the CCC
+  into hardware, gpu etc. etc.
+  
+- I5 Algebraic and denotational design (TBS)
+
+  Following Conal Elliott and Sandy Maguire and taking denotational
+  semantics seriously. What are the implications for correct software
+  and the engineering discipline?
+
+- I6 More tagless; even final! (TBS)
+
+  More [[file:papers/final-tagless-lecture.pdf][masterful]] tagless and final embeddings of sophisticated DSLs
+  from Oleg.
+    
+- B1 [[file:plt-101.org][Programming language theory - 101]] (Self Study)
+
+  Lambda calculus up to simply typed LC; evaluation strategies etc.;
+  Introduction to Wadler's PLT course in Agda (upto Part 2).
+  
+- B2 The Lambda Cube (TBS)
+
+  The landscape of typing theories up to calculus of constructions;
+  what are the choices and trade offs of the typing regime?
+  
+- I4 Dependent types etc. (In Preparation)
+  
+  Per-Martin Löf Type Theory and Intuitionistic logic, propositions as
+  types and programs as proof;  Proof relevance, equality type; Issues
+  in logic; Agda, Idris.
+
+- A2. Homotopy Type Theory (TBS)
+
+  Higher dimensional types, cubical type theory and the Univalence
+  axiom.
+  
+--------------------------------------------------------------------------------
+
+* COMMENT Appendix A
+
+#+begin_src dot :file chart.png
+digraph {
+  A [label="A. Start"]
+  B1 [label="B1. Intro to PLT"; color="cyan"]
+  B2 [label="B2. The Lambda Cube"; color="cyan"]
+  B3 [label="B3. Intro to categories/algebra"; color="green"]
+  
+  I1 [label="I1. Story of Effects"; color="green"]
+  I2 [label="I2. Data Types à la Carte"; color="green"]
+  I3 [label="I3. Finally Tagless!"; color="green"]
+  I4 [label="I4. Dependent Types - Programs as Proof"; color="green"]
+  I5 [label="I5. Denotational Design"; color="cyan"]
+  I6 [label="I6. More tagless even final!"]
+  I7 [label="I7. Compiling to Categories"; color="cyan"]
+
+  A1 [label="A1. Monoids for computing"]
+  A2 [label="A2. Foundations - HOTT"; color="cyan"]
+
+  A -> I1 [label="Encoding effects"]
+  A -> I2 [label="Types are values?"; color="blue"]
+  A -> I3 [label="Haskell98 is all I need!"] 
+
+  A -> B1 [label="Lambda what?"; color="blue"]
+  A -> I5 [color="orange"]
+  A -> B3 [label="Cats do code?"; color="purple"]
+  A1 -> A2 [color="purple"]
+  B3 -> I1 [label="Algebra of types"; color="purple"]
+  B1 -> B2 [color="blue"]
+  B1 -> I1 
+  B2 -> I4 [color="blue"]
+
+  I2 -> B2 [label="Give me those types"; color="blue"]
+  I4 -> A2 [label="Higher dimensions"; color="blue"]
+  I1 -> I2 [label="The Expression Problem"; color="purple"]
+  I2 -> I3
+  I2 -> I7
+  I5 -> I7 [color="orange"]
+  I3 -> I6 [label="The Serialisation Problem"]
+  I2 -> A1 [label="Cats up to CTfP Part 2?"; color="purple"]
+}
+#+end_src
+
+#+RESULTS:
+[[file:chart.png]]
